@@ -21,7 +21,7 @@ def main(args):
 
     # Load and process the dataset
     print(f"\nProcessing dataset: {args.dataset}")
-    X, labels = load_dataset(
+    X, labels, label_names, tooltip_texts = load_dataset(
         args.dataset,
         split=args.split,
         max_samples=args.max_samples,
@@ -34,7 +34,11 @@ def main(args):
     
     # Initialize and run t-SNE
     print("\nInitializing t-SNE...")
-    tsne = TSNE(n_iter=args.num_iters, verbose=True)
+    tsne = TSNE(
+        n_iter=args.num_iters,
+        verbose=True,
+        n_jobs=-1  # Use all available cores
+    )
     tsne._EXPLORATION_N_ITER = args.early_iters
     
     print("\nExtracting t-SNE sequence...")
@@ -53,11 +57,27 @@ def main(args):
     
     # Generate and save animation
     dataset_name = args.dataset.split('/')[-1]
+    title = f"{dataset_name} t-SNE Visualization"
+    if args.label_field:
+        title += f" (colored by {args.label_field})"
+    
     fig_name = f'{dataset_name}-{args.num_iters}-{args.early_iters}-tsne'
     fig_path = os.path.join('figures', f'{fig_name}.gif')
     
     print(f"\nSaving animation to {fig_path}")
-    savegif(Y_seq, labels, fig_name, fig_path, limits=limits)
+    savegif(
+        Y_seq,
+        labels,
+        texts=tooltip_texts,
+        title=title,
+        filename=fig_path,
+        limits=limits,
+        label_names=label_names,
+        figsize=args.figsize,
+        fps=args.fps,
+        dpi=args.dpi,
+        style=args.style
+    )
     print("\nDone!")
 
 if __name__ == '__main__':
@@ -77,9 +97,20 @@ if __name__ == '__main__':
     parser.add_argument('--embed-model', type=str, required=True,
                       help='Name of the Hugging Face embedding model to use')
     parser.add_argument('--embed-task', type=str,
-                      help='Task type for models supporting multiple tasks (e.g., "text-matching" for Jina embeddings)')
+                      help='Task type for models supporting multiple tasks')
     parser.add_argument('--label-field', type=str,
                       help='Field to use for coloring points in the visualization')
+    
+    # Visualization parameters
+    parser.add_argument('--figsize', type=int, nargs=2, default=(12, 8),
+                      help='Figure size in inches (width height)')
+    parser.add_argument('--fps', type=int, default=30,
+                      help='Frames per second in the animation')
+    parser.add_argument('--dpi', type=int, default=100,
+                      help='DPI for the animation')
+    parser.add_argument('--style', type=str, default='dark_background',
+                      choices=['dark_background', 'default'],
+                      help='Visual style for the animation')
     
     args = parser.parse_args()
     main(args)

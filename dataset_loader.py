@@ -40,6 +40,15 @@ def process_hf_dataset(dataset_name, split=None, max_samples=None, embed_fields=
         indices = np.random.choice(len(data), max_samples, replace=False)
         data = data.select(indices)
     
+    # Get data for tooltips
+    tooltip_texts = []
+    for item in tqdm(data, desc="Preparing tooltip texts", unit="example"):
+        text_parts = []
+        for field in embed_fields:
+            if field in item:
+                text_parts.append(f"{field}: {str(item[field])[:100]}")
+        tooltip_texts.append(" | ".join(text_parts))
+    
     # Create labels based on the specified field or use simple numbering
     print("\nProcessing labels...")
     if label_field:
@@ -53,23 +62,33 @@ def process_hf_dataset(dataset_name, split=None, max_samples=None, embed_fields=
         if isinstance(values[0], (int, bool)):
             # For numeric/boolean fields, use as is
             labels = np.array(values)
+            label_names = {i: str(i) for i in set(labels)}
         elif isinstance(values[0], float):
             # For continuous values, bin them into 10 categories
             print("Binning continuous values into 10 categories...")
             from sklearn.preprocessing import KBinsDiscretizer
             discretizer = KBinsDiscretizer(n_bins=10, encode='ordinal', strategy='quantile')
             labels = discretizer.fit_transform(np.array(values).reshape(-1, 1)).ravel()
+            
+            # Create meaningful names for bins
+            edges = discretizer.bin_edges_[0]
+            label_names = {
+                i: f"{edges[i]:.2f} - {edges[i+1]:.2f}"
+                for i in range(len(edges)-1)
+            }
         else:
             # For string/categorical fields, map to integers
             print("Converting categorical labels to integers...")
             unique_values = sorted(set(values))
             label_map = {val: i for i, val in enumerate(unique_values)}
             labels = np.array([label_map[val] for val in tqdm(values, desc="Processing labels", unit="example")])
+            label_names = {i: str(val) for val, i in label_map.items()}
         
         print(f"Created labels from field '{label_field}' with {len(set(labels))} unique values")
     else:
         print("No label field specified. Using sequential numbering.")
         labels = np.arange(len(data))
+        label_names = {i: str(i) for i in range(len(data))}
     
     # Process features
     print("\nProcessing features...")
@@ -84,7 +103,7 @@ def process_hf_dataset(dataset_name, split=None, max_samples=None, embed_fields=
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
     
-    return X, labels
+    return X, labels, label_names, tooltip_texts
 
 def load_dataset(dataset_name, split=None, max_samples=None, embed_fields=None, embed_model=None, embed_task=None, label_field=None):
     """Universal dataset loader that handles both MNIST and Hugging Face datasets"""
