@@ -4,12 +4,12 @@ import numpy as np
 from sklearn import manifold
 
 def extract_sequence(tsne, X):
-    sklearn_grad = manifold.t_sne._gradient_descent
+    sklearn_grad = manifold._t_sne._gradient_descent
     Y_seq = []
 
     # modified from sklearn source https://github.com/scikit-learn/scikit-learn/blob/a24c8b46/sklearn/manifold/t_sne.py#L442
     # to save the sequence of embeddings at each training iteration
-    def _gradient_descent(objective, p0, it, n_iter,
+    def _gradient_descent(objective, p0, it, max_iter,
                           n_iter_check=1, n_iter_without_progress=300,
                           momentum=0.8, learning_rate=200.0, min_gain=0.01,
                           min_grad_norm=1e-7, verbose=0, args=None, kwargs=None):
@@ -21,12 +21,12 @@ def extract_sequence(tsne, X):
         p = p0.copy().ravel()
         update = np.zeros_like(p)
         gains = np.ones_like(p)
-        error = np.finfo(np.float).max
-        best_error = np.finfo(np.float).max
+        error = np.finfo(float).max
+        best_error = np.finfo(float).max
         best_iter = i = it
 
         tic = time()
-        for i in range(it, n_iter):
+        for i in range(it, max_iter):
 
             # save the current state
             Y_seq.append(p.copy().reshape(-1, 2))
@@ -72,11 +72,11 @@ def extract_sequence(tsne, X):
         return p, error, i
 
     # replace with modified gradient descent
-    manifold.t_sne._gradient_descent = _gradient_descent
+    manifold._t_sne._gradient_descent = _gradient_descent
     # train given tsne object with new gradient function
     X_proj = tsne.fit_transform(X)
     # return to default version
-    manifold.t_sne._gradient_descent = sklearn_grad
+    manifold._t_sne._gradient_descent = sklearn_grad
     
     return np.array(Y_seq)
   
